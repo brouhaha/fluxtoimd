@@ -35,6 +35,10 @@ class Modulation:
         return bytes
     
 
+# FM is IBM 3740 single-density format
+# standards, single-sided: ECMA 54, ISO 5654, ANSI X3.73
+# standards, double-sided: ECMA 59
+
 class FM(Modulation):
 
     default_bit_rate_kbps = 250
@@ -63,6 +67,9 @@ class FM(Modulation):
 
     del encode_mark
 
+
+# MFM is IBM System/34 double-density format
+# standards: ECMA 69, ISO 7065, ANSI X3.121
 
 class MFM(Modulation):
 
@@ -99,6 +106,15 @@ class MFM(Modulation):
     del encode_mark
     
 
+
+# An Intel-proprietary M2FM floppy format, used by the Intel SBC 202
+# floppy controller in Intel MDS 800, Series II, and Series III development
+# systems.
+# Documentation:
+#   SBC 202 Double Density Diskette Controller Hardware Reference Manual,
+#      Intel 1977, Order Number 9800420A
+#   Intelled Double Density Diskette Operating System Hardware Reference Manual,
+#      Intel 1977, Order Number 98-422A
 
 class IntelM2FM(Modulation):
 
