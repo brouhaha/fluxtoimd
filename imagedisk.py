@@ -20,8 +20,12 @@
 #    along with this program.  If not, see
 #    <http://www.gnu.org/licenses/>.
 
+import argparse
 import datetime
 from collections import OrderedDict
+
+from modulation import FM, MFM, IntelM2FM
+
 
 class ImageDisk:
     class NotImageDiskFileException(Exception):
@@ -148,10 +152,17 @@ class ImageDisk:
             f.write(bytes([sector.size_code for sector in track]))
         for sector_number in track:
             if track[sector_number].deleted:
-                f.write(bytes([0x03]))
+                data_code = 0x03
             else:
-                f.write(bytes([0x01]))
-            f.write(track[sector_number].data)
+                data_code = 0x01
+            data = track[sector_number].data
+            compress = data[1:] == data[:-1]
+            if compress:
+                f.write(bytes([data_code + 1]))
+                f.write(data[0:1])
+            else:
+                f.write(bytes([data_code]))
+                f.write(data)
 
 
     def write(self, f):
@@ -175,9 +186,41 @@ class ImageDisk:
             f.close()
 
 
+def auto_int(x):
+    return int(x, 0)
+
+
 if __name__ == '__main__':
-    imd = ImageDisk()
-    for track in range(77):
-        for sector in range(1, 27):
-            imd.write_sector(0x00, track, 0x00, sector, bytes([0xe5] * 128))
-    imd.write('foo.imd')
+    parser = argparse.ArgumentParser(description = 'ImageDisk library test, writes an empty disk image',
+                                     formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('image', type=argparse.FileType('wb'))
+    
+    parser_modulation = parser.add_mutually_exclusive_group(required = False)
+    parser_modulation.add_argument('--fm',   action = 'store_const', const = FM,   dest = 'modulation', help = 'FM modulation, IBM 3740 single density')
+    parser_modulation.add_argument('--mfm',  action = 'store_const', const = MFM,  dest = 'modulation', help = 'MFM modulation, IBM System/34 double density')
+    parser_modulation.add_argument('--m2fm', action = 'store_const', const = IntelM2FM, dest = 'modulation', help = 'M2FM modulation, Intel MDS, SBC 202 double density')
+
+    parser.add_argument('-t', '--tracks',  type = int, default = 77, help = 'tracks per side')
+    parser.add_argument('-s', '--sectors', type = int, help = 'sectors per track')
+    parser.add_argument('-b', '--bytes',   type = int, help = 'bytes per sector')
+    parser.add_argument('-d', '--data',    type = auto_int, default = 0xe5, help = 'data byte to fill sectors')
+
+    parser.set_defaults(modulation = FM)
+
+    args = parser.parse_args()
+
+    sectors = args.sectors
+    if sectors is None:
+        sectors = args.modulation.default_sectors_per_track
+
+    bytes_per_sector = args.bytes
+    if bytes_per_sector is None:
+        bytes_per_sector = args.modulation.default_bytes_per_sector
+
+    imd = ImageDisk()  # no file, so creating a new image
+    
+    head = 0
+    for track in range(args.tracks):
+        for sector in range(1, sectors + 1):
+            imd.write_sector(args.modulation.imagedisk_mode, track, head, sector, bytes([args.data] * bytes_per_sector))
+    imd.write(args.image)
