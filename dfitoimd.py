@@ -203,6 +203,5 @@ for track in range(77):
 if args.imagedisk_image is not None:
     imd.write(args.imagedisk_image)
 
-if args.verbose:
-    print('%d data sectors, %d deleted data sectors, out of %d' % (data_sectors, deleted_sectors, total))
+print('read %d data sectors, %d deleted data sectors, out of %d' % (data_sectors, deleted_sectors, total))
 
