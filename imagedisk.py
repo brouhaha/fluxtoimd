@@ -68,26 +68,34 @@ class ImageDisk:
             raise InvalidSectorSizeException('invalid sector size, cyl=%d, head=%d, sector=%d, size=%d' % (cylinder, head, sector, len(data)))
         self.tracks[track_coord][sector] = ImageDisk.Sector(mode, deleted, self.__sector_size_map[len(data)], data)
 
+
     def __read_track(self, f):
-        mode = f.read(1)
-        if mode == b'':
+        header = f.read(5)
+        if len(header) != 5:
             raise EOFError()
-        cylinder = f.read(1)
-        head = f.read(1)
-        sector_count = f.read(1)
-        sector_size_code = f.read(1)
-        sector_numbers = [None] * sector_count
+        mode = header[0]
+        cylinder = header[1]
+        head = header[2]
+        sector_count = header[3]
+        sector_size_code = header[4]
         sector_size_codes = [sector_size_code] * sector_count
-        for i in range(sector_count):
-            sector_numbers[i] = f.read(1)
-        # XXX optional cylinder map not supported
-        # XXX optional head map not supported
+        sector_numbers = f.read(sector_count)
+        # XXX optional cylinder map not yet supported
+        # XXX optional head map not yet supported
         if sector_size_code == 0xff:
-            for i in range(sector_count):
-                sector_size_codes[i] = f.read(1)
+            sector_size_codes = f.read(sector_count)
         for i in range(sector_count):
-            data = f.read(128 << sector_size_codes[i])
+            data_type = f.read(1)[0]
+            assert data_type <= 0x08
+            bad = data_type in [0x00, 0x05, 0x06, 0x07, 0x08]
+            deleted = data_type in [0x03, 0x04, 0x07, 0x08]
+            compressed = data_type in [0x02, 0x04, 0x06, 0x08]
+            if compressed:
+                data = f.read(1) * (128 << sector_size_codes[i])
+            else:
+                data = f.read(128 << sector_size_codes[i])
             self.write_sector(mode, cylinder, head, sector_numbers[i], data)
+
 
     # if a file or filename is specified as f, will read that image
     def __init__(self, f = None, comment = None, timestamp = None):
@@ -101,7 +109,7 @@ class ImageDisk:
             if s != b'IMD ':
                 raise NotImageDiskFileException()
             c = 0
-            while c != 0x1a:
+            while c != bytes([0x1a]):
                 c = f.read(1)
             while True:
                 try:
@@ -118,7 +126,7 @@ class ImageDisk:
 
     def read_sector(self, cylinder, head, sector):
         try:
-            data = self.tracks[(cylinder, head)][sector][2]
+            data = self.tracks[(cylinder, head)][sector].data
         except KeyError:
             raise NonexistentSectorException()
         return data
