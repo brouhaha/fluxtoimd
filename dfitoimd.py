@@ -164,40 +164,22 @@ hbr = args.bit_rate * 2000   # half-bit rate in Hz
 hbc = 1/hbr                  # half-bit cycle in s
 
 
-tracks = [None] * 77
-for track in range(77):
-    tracks [track] = dump_track(args.modulation, dfi_image, track)
-
-
-
 sectors_per_track = args.modulation.default_sectors_per_track
 
+bad_sectors = 0
 data_sectors = 0
 deleted_sectors = 0
-total = 0
-for track_num in range(77):
-    track = tracks[track_num]
-    if args.imagedisk_image is not None:
-        for sector_num in track:
-            deleted = track[sector_num][0]
-            data = track[sector_num][1]
-            if data is not None:
-                #print('writing track %02d sector %02d\n' % (track_num, sector_num))
-                imd.write_sector(args.modulation.imagedisk_mode,
-                                 track_num,  # cylinder
-                                 0,      # head
-                                 sector_num,
-                                 bytes(data),
-                                 deleted = deleted)
-            else:
-                # XXX don't yet have support from imagedisk.py for bad sectors
-                print('*** BAD: track %02d sector %02d\n' % (track_num, sector_num))
-                pass
+total_sectors = 0
 
+
+tracks = [None] * 77
+for track_num in range(77):
+    track = dump_track(args.modulation, dfi_image, track_num)
+    tracks [track_num] = track
     if args.verbose:
         print('%2d: ' % track_num, end='')
     for sector_num in range(1, sectors_per_track + 1):
-        total += 1
+        total_sectors += 1
         if sector_num not in track:
             if args.verbose:
                 print('*', end='')
@@ -215,8 +197,25 @@ for track_num in range(77):
     if args.verbose:
         print()
 
+    if args.imagedisk_image is not None:
+        for sector_num in track:
+            deleted = track[sector_num][0]
+            data = track[sector_num][1]
+            if data is not None:
+                #print('writing track %02d sector %02d\n' % (track_num, sector_num))
+                imd.write_sector(args.modulation.imagedisk_mode,
+                                 track_num,  # cylinder
+                                 0,      # head
+                                 sector_num,
+                                 bytes(data),
+                                 deleted = deleted)
+            else:
+                # XXX don't yet have support from imagedisk.py for bad sectors
+                print('*** BAD: track %02d sector %02d\n' % (track_num, sector_num))
+                pass
+
 if args.imagedisk_image is not None:
     imd.write(args.imagedisk_image)
 
-print('read %d data sectors, %d deleted data sectors, out of %d' % (data_sectors, deleted_sectors, total))
+print('%d data sectors, %d deleted data sectors, %d bad sectors, out of %d' % (data_sectors, deleted_sectors, bad_sectors, total_sectors))
 
