@@ -80,12 +80,16 @@ class MFM(Modulation):
 
     # Would prefer to use a more general @staticmethod encode, but then can't call in
     # class initialization
-    def encode_mark(data1, clock1, data2):
+    # missing_clock1 bit comes after data1 bit numbered with leftmost bit 0
+    def encode_mark(data1, missing_clock1, data2):
         prev_d = 0
         bits = ''
         for i in range(7, -1, -1):
-            c = (clock1 >> i) & 1
             d = (data1  >> i) & 1
+            if (prev_d == 0) and (d == 0) and (i != (6 - missing_clock1)):
+                c = 1
+            else:
+                c = 0
             bits += ('%d%d' % (c, d))
             prev_d = d
         for i in range(7, -1, -1):
@@ -98,10 +102,10 @@ class MFM(Modulation):
             prev_d = d
         return bits
 
-    index_address_mark         = encode_mark(0xc2, 0xd7, 0xfc)
-    id_address_mark            = encode_mark(0xa1, 0xc7, 0xfe)
-    data_address_mark          = encode_mark(0xa1, 0xc7, 0xfb)
-    deleted_data_address_mark  = encode_mark(0xa1, 0xc7, 0xf8)
+    index_address_mark         = encode_mark(0xc2, 5, 0xfc)
+    id_address_mark            = encode_mark(0xa1, 4, 0xfe)
+    data_address_mark          = encode_mark(0xa1, 4, 0xfb)
+    deleted_data_address_mark  = encode_mark(0xa1, 4, 0xf8)
 
     del encode_mark
     
@@ -144,3 +148,13 @@ class IntelM2FM(Modulation):
     deleted_data_address_mark  = encode_mark(0x08, clock = 0x72)
 
     del encode_mark
+
+
+if __name__ == '__main__':
+    for modulation in (FM, MFM, IntelM2FM):
+        print('modulation: ', modulation.__name__)
+        print('         index address mark: ', modulation.index_address_mark)
+        print('            ID address mark: ', modulation.id_address_mark)
+        print('          data address mark: ', modulation.data_address_mark)
+        print('  deleted data address mark: ', modulation.deleted_data_address_mark)
+        print()
