@@ -212,8 +212,8 @@ for track_num in range(77):
             if args.verbose:
                 print('.', end='')
             data_sectors += 1
-        if args.verbose:
-            print()
+    if args.verbose:
+        print()
 
 if args.imagedisk_image is not None:
     imd.write(args.imagedisk_image)
