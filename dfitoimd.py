@@ -43,7 +43,9 @@ def hex_dump(b, prefix = ''):
         print()
 
 
-def dump_track(modulation, image, track, sectors_per_track = None):
+def dump_track(modulation, image, track,
+               sectors_per_track = None,
+               require_index_mark = False):
 
     if sectors_per_track is None:
         sectors_per_track = modulation.default_sectors_per_track
@@ -66,6 +68,12 @@ def dump_track(modulation, image, track, sectors_per_track = None):
     for b in adpll:
         bits += '01'[b]
     #print(len(bits))
+
+    if require_index_mark:
+        index_address_mark_locs = [m.start() for m in re.finditer(modulation.index_address_mark, bits)]
+        if not index_address_mark_locs:
+            print('track %d: no index address mark found' % track)
+            return sectors
 
     id_address_mark_locs = [m.start() for m in re.finditer(modulation.id_address_mark, bits)]
     #print('id address marks at: ', id_address_mark_locs)
@@ -135,6 +143,7 @@ parser.set_defaults(modulation = 'fm')
 
 parser.add_argument('-f', '--frequency',  type=float, help = 'sample rate in MHz', default=25.0)
 parser.add_argument('-b', '--bit-rate',   type=float, help = 'bit rate in Kbps')
+parser.add_argument('--index',            action = 'store_true', help = 'require for index address marks')
 parser.add_argument('-v', '--verbose',    action = 'store_true')
 args = parser.parse_args()
 
@@ -174,7 +183,7 @@ total_sectors = 0
 
 tracks = [None] * 77
 for track_num in range(77):
-    track = dump_track(args.modulation, dfi_image, track_num)
+    track = dump_track(args.modulation, dfi_image, track_num, require_index_mark = args.index)
     tracks [track_num] = track
     if args.verbose:
         print('%2d: ' % track_num, end='')
