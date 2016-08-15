@@ -143,7 +143,7 @@ parser.set_defaults(modulation = 'fm')
 
 parser.add_argument('-f', '--frequency',  type=float, help = 'sample rate in MHz', default=25.0)
 parser.add_argument('-b', '--bit-rate',   type=float, help = 'bit rate in Kbps')
-parser.add_argument('--index',            action = 'store_true', help = 'require for index address marks')
+parser.add_argument('--index',            action = 'store_true', help = 'require tracks to have index address marks')
 parser.add_argument('-v', '--verbose',    action = 'store_true')
 args = parser.parse_args()
 
