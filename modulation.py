@@ -44,9 +44,11 @@ class FM(Modulation):
     default_bit_rate_kbps = 250
     default_sectors_per_track = 26
     default_bytes_per_sector = 128
+    lsb_first = False
     imagedisk_mode = 0x00
 
     crc_init = 0xffff
+    crc_includes_address_mark = True
 
     id_to_data_half_bits = 400
 
@@ -76,7 +78,11 @@ class MFM(Modulation):
     default_bit_rate_kbps = 500
     default_sectors_per_track = 26
     default_bytes_per_sector = 256
+    lsb_first = False
     imagedisk_mode = 0x03
+
+    crc_init = 0xffff
+    crc_includes_address_mark = True
 
     # Would prefer to use a more general @staticmethod encode, but then can't call in
     # class initialization
@@ -125,10 +131,12 @@ class IntelM2FM(Modulation):
     default_bit_rate_kbps = 500
     default_sectors_per_track = 52
     default_bytes_per_sector = 128
+    lsb_first = False
     imagedisk_mode = 0x03  # ImageDisk doesn't (yet?) have a defined mode for
                            # Intel M2FM
 
     crc_init = 0x0000
+    crc_includes_address_mark = True
 
     id_to_data_half_bits = 600
 
@@ -150,11 +158,55 @@ class IntelM2FM(Modulation):
     del encode_mark
 
 
+# An HP-proprietary M2FM floppy format, used by the HP 9895A Flexible
+# Disc Memory.
+# Documentation:
+#   9895A Flexible Disc Memory Service Manual,
+#      Hewlett-Packard, February 1981, order number 09895-90030
+
+class HPM2FM(Modulation):
+
+    default_bit_rate_kbps = 500
+    default_sectors_per_track = 30
+    default_bytes_per_sector = 256
+    lsb_first = True
+    imagedisk_mode = 0x03  # ImageDisk doesn't (yet?) have a defined mode for
+                           # Intel M2FM
+
+    crc_init = 0xffff
+    crc_includes_address_mark = False
+
+    id_to_data_half_bits = 600
+
+    # Would prefer to use a more general @staticmethod encode, but then can't call in
+    # class initialization
+    def encode_mark(data, clock):
+        bits = ''
+        for i in range(0, 8):
+            c = (clock >> i) & 1
+            d = (data  >> i) & 1
+            bits += ('%d%d' % (c, d))
+        return bits
+
+    id_address_mark              = encode_mark(0x70, clock = 0xe0)
+    defective_track_address_mark = encode_mark(0xf0, clock = 0x0e)
+    data_address_mark            = encode_mark(0x50, clock = 0x0e)
+    ecc_data_address_mark        = encode_mark(0xd0, clock = 0x0e)
+
+    del encode_mark
+
+
 if __name__ == '__main__':
-    for modulation in (FM, MFM, IntelM2FM):
+    for modulation in (FM, MFM, IntelM2FM, HPM2FM):
         print('modulation: ', modulation.__name__)
-        print('         index address mark: ', modulation.index_address_mark)
-        print('            ID address mark: ', modulation.id_address_mark)
-        print('          data address mark: ', modulation.data_address_mark)
-        print('  deleted data address mark: ', modulation.deleted_data_address_mark)
+        if hasattr(modulation, 'index_address_mark'):
+            print('            index address mark: ', modulation.index_address_mark)
+        print('               ID address mark: ', modulation.id_address_mark)
+        if hasattr(modulation, 'defective_track_address_mark'):
+            print('  defective track address mark: ', modulation.defective_track_address_mark)
+        print('             data address mark: ', modulation.data_address_mark)
+        if hasattr(modulation, 'deleted_data_address_mark'):
+            print('     deleted data address mark: ', modulation.deleted_data_address_mark)
+        if hasattr(modulation, 'ecc_data_address_mark'):
+            print('         ecc data address mark: ', modulation.ecc_data_address_mark)
         print()
