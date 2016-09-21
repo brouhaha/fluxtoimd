@@ -158,11 +158,15 @@ class IntelM2FM(Modulation):
     del encode_mark
 
 
-# An HP-proprietary M2FM floppy format, used by the HP 9895A Flexible
-# Disc Memory.
+# An HP-proprietary M2FM floppy format, used by the HP 9885 and 9895
+# Flexible Disc Drives.
 # Documentation:
+#   9885 Flexible Disk Drive Service Manual
+#      Hewlett-Packard, September 1976, part number 09885-90030
 #   9895A Flexible Disc Memory Service Manual,
-#      Hewlett-Packard, February 1981, order number 09895-90030
+#      Hewlett-Packard, February 1981, part number 09895-90030
+# 9885: single-sided, 67 track, M2FM format only
+# 9895: double-siced, 77 track, M2FM or IBM 3740 FM formats
 
 class HPM2FM(Modulation):
 
