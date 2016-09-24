@@ -88,10 +88,11 @@ class KyroFluxIndex(KyroFluxStreamOOBBlock):
             print('  sample_counter:        %d' % self.sample_counter)
             print('  index_counter:         %d' % self.index_counter)
 
-    def found_target_flux(self, flux_sample_counter):
-        self.next_flux_sample_counter = flux_sample_counter
+    def found_target_flux(self, prev_flux_sample_counter, flux_sample_counter):
+        self.index_abs = prev_flux_sample_counter + self.sample_counter
+        self.kfs.index_abs.append(self.index_abs)
         if self.kfs.debug:
-            print('post index %d flux transition found at sample count %d' % (self.index_number, flux_sample_counter))
+            print('post index %d flux transition found at sample count %d' % (self.index_number, self.index_abs))
             
 
 @KyroFluxStreamOOBBlock.register_subclass(0x03)
@@ -190,8 +191,11 @@ class KyroFluxStream:
 
         if self.stream_offset in self.pending_index_blocks:
             index = self.pending_index_blocks[self.stream_offset]
-            index.found_target_flux(self.flux_sample_counter)
+            index.found_target_flux(self.prev_flux_sample_counter,
+                                    self.flux_sample_counter)
             del self.pending_index_blocks[self.stream_offset]
+
+        self.prev_flux_sample_counter = self.flux_sample_counter
 
         if self.debug:
             print('flux at %d' % self.flux_sample_counter)
@@ -233,6 +237,7 @@ class KyroFluxStream:
         self.stream_end = False
         self.logical_eof = False
 
+        self.prev_flux_sample_counter = 0
         self.flux_sample_counter = 0
         self.flux_trans_abs = [ ]
 
@@ -240,7 +245,7 @@ class KyroFluxStream:
 
         self.index_count = 0
         self.pending_index_blocks = { }
-        self.index_pos = [ ]
+        self.index_abs = [ ]
 
         while not self.logical_eof:
             self.get_block()
