@@ -1,1 +1,8 @@
 *~
+images
+*.imd
+*.bin
+arch255*
+documentation.txt
+imd.txt
+notes.txt
