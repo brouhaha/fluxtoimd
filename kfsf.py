@@ -255,6 +255,9 @@ class KyroFluxStream:
         except:
             self.frequency = 18.432e6 * 73 / 56
 
+        if self.pending_index_blocks:
+            raise Exception('One or more unresolved index blocks')
+
 
 class KFSF:
     def __init__(self, f, debug = False):
