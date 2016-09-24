@@ -35,7 +35,7 @@ class KyroFluxStreamOOBBlock:
         self.read_oob_payload()
 
         read_length = (kfs.stream_offset - self.oob_header_offset) - 4
-        if self.length != read_length:
+        if (not kfs.logical_eof) and (self.length != read_length):
             raise Exception('Internal error: OOB block length %d, but expected %d bytes' % (self.length, read_length))
 
         # OOB blockfs don't count toward stream offset!
@@ -92,7 +92,7 @@ class KyroFluxStreamEnd(KyroFluxStreamOOBBlock):
         self.stream_pos  = self.kfs.read_u32_le()
         pos_error = self.oob_header_offset - self.stream_pos
         self.result_code = self.kfs.read_u32_le()
-        self.kfs.reading_done = True
+        self.kfs.stream_end = True
 
         if self.kfs.debug:
             print('StreamEnd at %d' % self.oob_header_offset)
@@ -113,6 +113,14 @@ class KyroFluxInfo(KyroFluxStreamOOBBlock):
 
         if self.kfs.debug:
             print('Info at %d' % self.oob_header_offset)
+
+@KyroFluxStreamOOBBlock.register_subclass(0x0d)
+class KyroFluxEOF(KyroFluxStreamOOBBlock):
+    def read_oob_payload(self):
+        self.kfs.logical_eof = True
+
+        if self.kfs.debug:
+            print('Logical EOF at %d' % self.oob_header_offset)
 
 class KyroFluxStream:
     def read(self, count):
@@ -169,6 +177,8 @@ class KyroFluxStream:
 
     def get_block(self):
         bt = self.read_u8()
+        if self.stream_end and bt != 0x0d:
+            raise Exception('In-band data past stream end')
         if bt <= 0x07:  # Flux2
             self.flux_change((bt << 8) + self.read_u8())
         elif bt == 0x08: # Nop1
@@ -193,8 +203,9 @@ class KyroFluxStream:
         self.info = { }
         self.stream_offset = 0
         self.overflow = 0
-        self.reading_done = False
-        while not self.reading_done:
+        self.stream_end = False
+        self.logical_eof = False
+        while not self.logical_eof:
             self.get_block()
 
 
