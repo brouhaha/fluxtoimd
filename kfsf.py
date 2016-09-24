@@ -108,11 +108,13 @@ class KyroFluxInfo(KyroFluxStreamOOBBlock):
         text = self.kfs.read(self.length).decode('ascii')
         if text[-1] != '\x00':
             raise Exception('Info text not null-terminated')
-        fields = dict([i.split('=') for i in text[:-1].split(',')])
-        self.kfs.info.update(fields)
+        fields = [i.split('=') for i in text[:-1].split(', ')]
+        self.kfs.info.update(dict(fields))
 
         if self.kfs.debug:
             print('Info at %d' % self.oob_header_offset)
+            for (k, v) in fields:
+                print('  %s=%s' % (k, v))
 
 @KyroFluxStreamOOBBlock.register_subclass(0x0d)
 class KyroFluxEOF(KyroFluxStreamOOBBlock):
@@ -173,7 +175,11 @@ class KyroFluxStream:
 
     def flux_change(self, offset):
         # record flux change here
+        self.flux_sample_counter += self.overflow + offset
+        self.flux_trans_abs.append(self.flux_sample_counter)
         self.overflow = 0
+        if self.debug:
+            print('flux at %d' % self.flux_sample_counter)
 
     def get_block(self):
         bt = self.read_u8()
@@ -205,8 +211,18 @@ class KyroFluxStream:
         self.overflow = 0
         self.stream_end = False
         self.logical_eof = False
+
+        self.flux_sample_counter = 0
+        self.index_pos = [ ]
+        self.flux_trans_abs = [ ]
+
         while not self.logical_eof:
             self.get_block()
+
+        try:
+            self.frequency = float(self.info['sck'])
+        except:
+            self.frequency = 18.432e6 * 73 / 56
 
 
 class KFSF:
@@ -221,7 +237,7 @@ class KFSF:
         if zf is None:
             head = 0
             track = 0
-            self.tracks[(head, track)] = KyroFluxStream(f)
+            self.blocks[(head, track, 0)] = KyroFluxStream(f)
         else:
             for fn in zf.namelist():
                 #print(fn)
@@ -231,19 +247,22 @@ class KFSF:
                     track = int(m.group(1))
                     print('reading head %d track %02d' % (head, track))
                     with zf.open(fn) as f:
-                        self.tracks[(head, track)] = KyroFluxStream(f)
+                        self.blocks[(head, track, 0)] = KyroFluxStream(f)
+                        break
 
 # test program accepts command line arguments for 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description = 'KSF library test, prints flux transition time histogram for a chosen track',
+    parser = argparse.ArgumentParser(description = 'KFSF library test, prints flux transition time histogram for a chosen track',
                                      formatter_class = argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('image', type=argparse.FileType('rb', 0))
+    parser.add_argument('-s', '--side',       type=int,   help = 'head', default=0) # head
+    parser.add_argument('-t', '--track',      type=int,   help = 'cylinder', default=0) # cylinder
     parser.add_argument('-r', '--resolution', type=float, help = 'histogram resolution in us', default=0.2)
     args = parser.parse_args()
 
     image = KFSF(args.image)
 
-    block = image.blocks[(args.track, args.side, 1)]
+    block = image.blocks[(args.track, args.side, 0)]
 
-    bucket_size = int(args.frequency * args.resolution)
+    bucket_size = int(block.frequency * args.resolution)
     block.print_hist(bucket_size = bucket_size)
