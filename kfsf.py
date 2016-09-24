@@ -28,18 +28,17 @@ import zipfile
 
 class KyroFluxStreamOOBBlock:
     def __init__(self, kfs, length):
-        self.oob_header_offset = kfs.stream_offset - 4
         self.kfs = kfs
         self.length = length
 
         self.read_oob_payload()
 
-        read_length = (kfs.stream_offset - self.oob_header_offset) - 4
+        read_length = (kfs.stream_offset - kfs.block_offset) - 4
         if (not kfs.logical_eof) and (self.length != read_length):
             raise Exception('Internal error: OOB block length %d, but expected %d bytes' % (self.length, read_length))
 
         # OOB blockfs don't count toward stream offset!
-        kfs.stream_offset = self.oob_header_offset
+        kfs.stream_offset = kfs.block_offset
 
     oob_type_map = { }
 
@@ -62,11 +61,11 @@ class KyroFluxStreamOOBBlock:
 class KyroFluxStreamInfo(KyroFluxStreamOOBBlock):
     def read_oob_payload(self):
         self.stream_pos = self.kfs.read_u32_le()
-        pos_error = self.oob_header_offset - self.stream_pos
+        pos_error = self.kfs.block_offset - self.stream_pos
         self.xfer_time  = self.kfs.read_u32_le()
 
         if (self.kfs.debug):
-            print('StreamInfo at %d' % self.oob_header_offset)
+            print('StreamInfo at %d' % self.kfs.block_offset)
             print('  stream_pos:     %d' % self.stream_pos, end='')
             if pos_error:
                 print('  (error %d)' % pos_error, end='')
@@ -76,26 +75,35 @@ class KyroFluxStreamInfo(KyroFluxStreamOOBBlock):
 @KyroFluxStreamOOBBlock.register_subclass(0x02)
 class KyroFluxIndex(KyroFluxStreamOOBBlock):
     def read_oob_payload(self):
-        self.next_flux_pos  = self.kfs.read_u32_le()
-        self.sample_counter = self.kfs.read_u32_le()
-        self.index_counter  = self.kfs.read_u32_le()
+        self.index_number = self.kfs.index_count
+        self.kfs.index_count += 1
+        
+        self.next_flux_stream_pos  = self.kfs.read_u32_le()
+        self.sample_counter        = self.kfs.read_u32_le()
+        self.index_counter         = self.kfs.read_u32_le()
 
-        if (self.kfs.debug):
-            print('Index at %d' % self.oob_header_offset)
-            print('  next_flux_pos:  %d' % self.next_flux_pos)
-            print('  sample_counter: %d' % self.sample_counter)
-            print('  index_counter:  %d' % self.index_counter)
+        if self.kfs.debug:
+            print('Index %d at stream %d' % (self.index_number, self.kfs.block_offset))
+            print('  next_flux_stream_pos:  %d' % self.next_flux_stream_pos)
+            print('  sample_counter:        %d' % self.sample_counter)
+            print('  index_counter:         %d' % self.index_counter)
+
+    def found_target_flux(self, flux_sample_counter):
+        self.next_flux_sample_counter = flux_sample_counter
+        if self.kfs.debug:
+            print('post index %d flux transition found at sample count %d' % (self.index_number, flux_sample_counter))
+            
 
 @KyroFluxStreamOOBBlock.register_subclass(0x03)
 class KyroFluxStreamEnd(KyroFluxStreamOOBBlock):
     def read_oob_payload(self):
         self.stream_pos  = self.kfs.read_u32_le()
-        pos_error = self.oob_header_offset - self.stream_pos
+        pos_error = self.kfs.block_offset - self.stream_pos
         self.result_code = self.kfs.read_u32_le()
         self.kfs.stream_end = True
 
         if self.kfs.debug:
-            print('StreamEnd at %d' % self.oob_header_offset)
+            print('StreamEnd at %d' % self.kfs.block_offset)
             print('  stream_pos:     %d' % self.stream_pos, end='')
             if pos_error:
                 print('  (error %d)' % pos_error, end='')
@@ -112,7 +120,7 @@ class KyroFluxInfo(KyroFluxStreamOOBBlock):
         self.kfs.info.update(dict(fields))
 
         if self.kfs.debug:
-            print('Info at %d' % self.oob_header_offset)
+            print('Info at %d' % self.kfs.block_offset)
             for (k, v) in fields:
                 print('  %s=%s' % (k, v))
 
@@ -122,7 +130,7 @@ class KyroFluxEOF(KyroFluxStreamOOBBlock):
         self.kfs.logical_eof = True
 
         if self.kfs.debug:
-            print('Logical EOF at %d' % self.oob_header_offset)
+            print('Logical EOF at %d' % self.kfs.block_offset)
 
 class KyroFluxStream:
     def read(self, count):
@@ -176,14 +184,22 @@ class KyroFluxStream:
     def flux_change(self, offset):
         # record flux change here
         self.flux_sample_counter += self.overflow + offset
-        self.flux_trans_abs.append(self.flux_sample_counter)
         self.overflow = 0
+
+        self.flux_trans_abs.append(self.flux_sample_counter)
+
+        if self.stream_offset in self.pending_index_blocks:
+            index = self.pending_index_blocks[self.stream_offset]
+            index.found_target_flux(self.flux_sample_counter)
+            del self.pending_index_blocks[self.stream_offset]
+
         if self.debug:
             print('flux at %d' % self.flux_sample_counter)
 
     def get_block(self):
+        self.block_offset = self.stream_offset
         bt = self.read_u8()
-        if self.stream_end and bt != 0x0d:
+        if bt != 0x0d and self.stream_end:
             raise Exception('In-band data past stream end')
         if bt <= 0x07:  # Flux2
             self.flux_change((bt << 8) + self.read_u8())
@@ -195,10 +211,15 @@ class KyroFluxStream:
             self.read(2)
         elif bt == 0x0b: # Ovl16
             self.overflow += 0x10000
+            if self.debug:
+                print('overflow')
         elif bt == 0x0c: # Flux3
             self.flux_change(self.read_u16_le)
         elif bt == 0x0d: # OOB
             block = KyroFluxStreamOOBBlock.factory(self)
+            self.oob_blocks.append(block)
+            if isinstance(block, KyroFluxIndex):
+                self.pending_index_blocks[block.next_flux_stream_pos] = block
         else: # 0x0e..0xff: Flux1
             self.flux_change(bt)
 
@@ -213,8 +234,13 @@ class KyroFluxStream:
         self.logical_eof = False
 
         self.flux_sample_counter = 0
-        self.index_pos = [ ]
         self.flux_trans_abs = [ ]
+
+        self.oob_blocks = [ ]
+
+        self.index_count = 0
+        self.pending_index_blocks = { }
+        self.index_pos = [ ]
 
         while not self.logical_eof:
             self.get_block()
@@ -226,7 +252,7 @@ class KyroFluxStream:
 
 
 class KFSF:
-    def __init__(self, f):
+    def __init__(self, f, debug = False):
         self.tracks = {}
         
         try:
@@ -237,7 +263,7 @@ class KFSF:
         if zf is None:
             head = 0
             track = 0
-            self.blocks[(head, track, 0)] = KyroFluxStream(f)
+            self.blocks[(head, track, 0)] = KyroFluxStream(f, debug = debug)
         else:
             for fn in zf.namelist():
                 #print(fn)
@@ -247,7 +273,7 @@ class KFSF:
                     track = int(m.group(1))
                     print('reading head %d track %02d' % (head, track))
                     with zf.open(fn) as f:
-                        self.blocks[(head, track, 0)] = KyroFluxStream(f)
+                        self.blocks[(head, track, 0)] = KyroFluxStream(f, debug = debug)
                         break
 
 # test program accepts command line arguments for 
@@ -258,9 +284,10 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--side',       type=int,   help = 'head', default=0) # head
     parser.add_argument('-t', '--track',      type=int,   help = 'cylinder', default=0) # cylinder
     parser.add_argument('-r', '--resolution', type=float, help = 'histogram resolution in us', default=0.2)
+    parser.add_argument('-d', '--debug',      action='store_true', help = 'print debugging information')
     args = parser.parse_args()
 
-    image = KFSF(args.image)
+    image = KFSF(args.image, debug = args.debug)
 
     block = image.blocks[(args.track, args.side, 0)]
 
