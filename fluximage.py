@@ -11,7 +11,7 @@ class FluxImageBlock:
         self.stream_offset = 0
 
     def coordinates(self):
-        return (self.head, self.cylinder, self.sector)
+        return (self.cylinder, self.head, self.sector)
 
     def read(self, count):
         d = self.fluximagefile.read(count)

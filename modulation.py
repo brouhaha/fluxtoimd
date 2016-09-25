@@ -45,7 +45,9 @@ class Modulation:
 class FM(Modulation):
 
     default_bit_rate_kbps = 250
+    default_first_sector = 1
     default_sectors_per_track = 26
+    expected_sector_sizes = [128, 256, 512, 1024, 2048, 4096]
     default_bytes_per_sector = 128
     lsb_first = False
     imagedisk_mode = 0x00
@@ -80,7 +82,9 @@ class FM(Modulation):
 class MFM(Modulation):
 
     default_bit_rate_kbps = 500
+    default_first_sector = 1
     default_sectors_per_track = 26
+    expected_sector_sizes = [128, 256, 512, 1024, 2048, 4096, 8192]  # 128 is uncommon
     default_bytes_per_sector = 256
     lsb_first = False
     imagedisk_mode = 0x03
@@ -134,7 +138,9 @@ class MFM(Modulation):
 class IntelM2FM(Modulation):
 
     default_bit_rate_kbps = 500
+    default_first_sector = 1
     default_sectors_per_track = 52
+    expected_sector_sizes = [128]
     default_bytes_per_sector = 128
     lsb_first = False
     imagedisk_mode = 0x03  # ImageDisk doesn't (yet?) have a defined mode for
@@ -182,7 +188,9 @@ class IntelM2FM(Modulation):
 class HPM2FM(Modulation):
 
     default_bit_rate_kbps = 500
+    default_first_sector = 0
     default_sectors_per_track = 30
+    expected_sector_sizes = [256]
     default_bytes_per_sector = 256
     lsb_first = True
     imagedisk_mode = 0x03  # ImageDisk doesn't (yet?) have a defined mode for
@@ -192,7 +200,7 @@ class HPM2FM(Modulation):
     crc_init = 0xffff
     crc_includes_address_mark = False
 
-    id_to_data_half_bits = 600
+    id_to_data_half_bits = 480
 
     # Would prefer to use a more general @staticmethod encode, but then can't call in
     # class initialization

@@ -226,7 +226,7 @@ class KFSF(FluxImage):
         if zf is None:
             head = 0
             track = 0
-            self.blocks[(head, track, 1)] = KyroFluxStream(fluximagefile, debug = debug)
+            self.blocks[(track, head, 1)] = KyroFluxStream(fluximagefile, debug = debug)
         else:
             for fn in zf.namelist():
                 #print(fn)
@@ -238,7 +238,7 @@ class KFSF(FluxImage):
                         print('reading head %d track %02d' % (head, track))
                     try:
                         with zf.open(fn) as f:
-                            self.blocks[(head, track, 1)] = KyroFluxStream(f, debug = debug)
+                            self.blocks[(track, head, 1)] = KyroFluxStream(f, debug = debug)
                     except Exception as e:
                         print('%s reading head %d track %02d' % (str(e), head, track))
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
 
     image = KFSF(args.image, debug = args.debug)
 
-    block = image.blocks[(args.side, args.track, 1)]
+    block = image.blocks[(args.track, args.side, 1)]
 
     bucket_size = int(block.frequency * args.resolution / 1.0e6)
     block.print_hist(bucket_size = bucket_size)

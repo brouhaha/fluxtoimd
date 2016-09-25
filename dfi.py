@@ -108,7 +108,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     image = DFI(args.image, frequency = args.frequency * 1.0e6, debug = args.debug)
 
-    block = image.blocks[(args.side, args.track, 1)]
+    block = image.blocks[(args.track, args.side, 1)]
 
     bucket_size = int(block.frequency * args.resolution / 1.0e6)
     block.print_hist(bucket_size = bucket_size)

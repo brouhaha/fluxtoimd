@@ -44,7 +44,10 @@ def hex_dump(b, prefix = ''):
         print()
 
 
-def dump_track(modulation, image, track,
+def dump_track(modulation,
+               image,
+               track,
+               side,  # 0 or 1
                sectors_per_track = None,
                require_index_mark = False):
 
@@ -53,7 +56,7 @@ def dump_track(modulation, image, track,
 
     sectors = OrderedDict()
 
-    block = image.blocks[(0, track, 1)]
+    block = image.blocks[(track, side, 1)]
 
     di = block.get_delta_iter()
 
@@ -100,26 +103,29 @@ def dump_track(modulation, image, track,
             else:
                 id_sector -= 0x80
                 id_head = 1
-            id_size = 0
+            id_size = 1
         else:
             id_track, id_head, id_sector, id_size = id_field[1:5]
         #print('head %d track %02d sector %02d' % (id_head, id_track, id_sector))
+        if id_head != side:
+            print("*** ID field with wrong head number")
+            hex_dump(id_field)
+            continue
         if id_track != track:
             print("*** ID field with wrong track number")
             hex_dump(id_field)
             continue
-        if id_size != 0:
-            print("*** ID field with sector size")
+
+        bc = 128 << id_size
+        if bc not in modulation.expected_sector_sizes:
+            print("*** ID field with unexpected sector size")
             hex_dump(id_field)
-            continue
         if (id_sector in sectors) and (sectors[id_sector][1] is not None):
             continue  # already have this one
         sectors[id_sector] = [False, None]
 
-        bc = 128 << id_size
-
         deleted = False
-        data_pos = bits.find(modulation.data_address_mark, id_pos + len(modulation.id_address_mark) + 96)
+        data_pos = bits.find(modulation.data_address_mark, id_pos + len(modulation.id_address_mark) + 16 * (modulation.id_field_length + 2))
         if (modulation.id_to_data_half_bits - 50) <= (data_pos - id_pos) <= (modulation.id_to_data_half_bits + 50):
             #print('  data address mark at channel bit offset %d' % (data_pos - id_pos))
             pass
@@ -139,7 +145,10 @@ def dump_track(modulation, image, track,
 
         data_field = modulation.decode(bits[data_pos: data_pos + len(modulation.id_address_mark) + (bc + 2) * 16])
         crc.reset()
-        crc.comp(data_field)
+        if (modulation.crc_includes_address_mark):
+            crc.comp(data_field)
+        else:
+            crc.comp(data_field[1:])
         if crc.get() != 0:
             print("*** bad data field CRC")
             continue
@@ -164,6 +173,7 @@ parser_modulation.add_argument('--hpm2fm', action = 'store_const', const = HPM2F
 
 parser.set_defaults(modulation = FM)
 
+parser.add_argument('-s', '--sides',      type=int, default = 1, choices = [1, 2], help='number of sides')
 parser.add_argument('-t', '--tracks',     type=int, default = 77, help='number of tracks')
 
 parser.add_argument('-f', '--frequency',  type=float, help = 'sample rate in MHz', default=25.0)
@@ -205,6 +215,7 @@ hbr = args.bit_rate * 2000   # half-bit rate in Hz
 hbc = 1/hbr                  # half-bit cycle in s
 
 
+first_sector = args.modulation.default_first_sector
 sectors_per_track = args.modulation.default_sectors_per_track
 
 bad_sectors = 0
@@ -213,47 +224,51 @@ deleted_sectors = 0
 total_sectors = 0
 
 
-tracks = [None] * args.tracks
+#tracks = { }
 for track_num in range(args.tracks):
-    track = dump_track(args.modulation, flux_image, track_num, require_index_mark = args.index)
-    tracks [track_num] = track
-    if args.verbose:
-        print('%2d: ' % track_num, end='')
-    for sector_num in range(1, sectors_per_track + 1):
-        total_sectors += 1
-        if sector_num not in track:
-            if args.verbose:
-                print('*', end='')
-            bad_sectors += 1
-            continue
-        sector = track[sector_num]
-        if sector[0]:
-            if args.verbose:
-                print('D', end='')
-            deleted_sectors += 1
-        else:
-            if args.verbose:
-                print('.', end='')
-            data_sectors += 1
-    if args.verbose:
-        print()
-
-    if args.imagedisk_image is not None:
-        for sector_num in track:
-            deleted = track[sector_num][0]
-            data = track[sector_num][1]
-            if data is not None:
-                #print('writing track %02d sector %02d\n' % (track_num, sector_num))
-                imd.write_sector(args.modulation.imagedisk_mode,
-                                 track_num,  # cylinder
-                                 0,      # head
-                                 sector_num,
-                                 bytes(data),
-                                 deleted = deleted)
+    for side_num in range(args.sides - 1):
+        track = dump_track(args.modulation, flux_image, track_num, side_num, require_index_mark = args.index)
+        #tracks[(track_num, side_num)] = track
+        if args.verbose:
+            print('track %2d' % track_num, end='')
+            if args.sides > 1:
+                print(' side %d' % side_num, end='')
+            print(': ', end='')
+        for sector_num in range(first_sector, first_sector + sectors_per_track):
+            total_sectors += 1
+            if sector_num not in track:
+                if args.verbose:
+                    print('*', end='')
+                    bad_sectors += 1
+                continue
+            sector = track[sector_num]
+            if sector[0]:
+                if args.verbose:
+                    print('D', end='')
+                    deleted_sectors += 1
             else:
-                # XXX don't yet have support from imagedisk.py for bad sectors
-                print('*** BAD: track %02d sector %02d\n' % (track_num, sector_num))
-                pass
+                if args.verbose:
+                    print('.', end='')
+                    data_sectors += 1
+        if args.verbose:
+            print()
+
+        if args.imagedisk_image is not None:
+            for sector_num in track:
+                deleted = track[sector_num][0]
+                data = track[sector_num][1]
+                if data is not None:
+                    #print('writing track %02d sector %02d\n' % (track_num, sector_num))
+                    imd.write_sector(args.modulation.imagedisk_mode,
+                                     track_num,  # cylinder
+                                     side_num,   # head
+                                     sector_num,
+                                     bytes(data),
+                                     deleted = deleted)
+                else:
+                    # XXX don't yet have support from imagedisk.py for bad sectors
+                    print('*** BAD: track %02d sector %02d\n' % (track_num, sector_num))
+                    pass
 
 if args.imagedisk_image is not None:
     imd.write(args.imagedisk_image)
