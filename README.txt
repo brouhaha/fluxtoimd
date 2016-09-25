@@ -1,5 +1,7 @@
-dfitoimd.py is a Python 3 program to decode a DFI (DiscFerret) flux transition
-floppy disk image file and write the data to an ImageDisk image file.
+fluxtoimd.py is a Python 3 program to read floppy disk flux transitions
+images, demodulate the data, and write the data to an ImageDisk image file.
+DiscFerret (.dfi) images and ZIP files of KryoFlux Stream File images are
+supported as input.
 
 Copyright 2016 Eric Smith <spacewar@gmail.com>
 
@@ -16,10 +18,10 @@ Copyright 2016 Eric Smith <spacewar@gmail.com>
     along with this program.  If not, see
     <http://www.gnu.org/licenses/>.
 
-Currently dfitoimd.py only supports 8-inch floppy disks in either IBM
+Currently fluxtoimd.py only supports 8-inch floppy disks in either IBM
 3740 FM single-sided single-density 128 byte/sector format, or Intel
 M2FM single-sided double-density M2FM 128 byte/sector format as used
 by Intel MDS 800/Series II/Series III development systems using the
 Intel SBC 202 floppy controller.  Additional format flexibility may be
-added later; the motivation for developing dfitoimd.py was
+added later; the motivation for developing fluxtoimd.py was
 specifically to deal double-density Intel MDS disks.

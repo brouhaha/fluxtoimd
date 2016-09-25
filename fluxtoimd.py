@@ -19,10 +19,11 @@ import argparse
 import re
 from collections import OrderedDict
 
-from dfi import DFI
+from dfi import DFI      # DiscFerret image format
+from kfsf import KFSF    # KryoFlux stream format
 from adpll import ADPLL
 from crc import CRC
-from modulation import FM, MFM, IntelM2FM
+from modulation import FM, MFM, IntelM2FM, HPM2FM
 from imagedisk import ImageDisk
 
 
@@ -52,7 +53,7 @@ def dump_track(modulation, image, track,
 
     sectors = OrderedDict()
 
-    block = image.blocks[(track, 0, 1)]
+    block = image.blocks[(0, track, 1)]
 
     di = block.get_delta_iter()
 
@@ -131,15 +132,18 @@ def dump_track(modulation, image, track,
 
 parser = argparse.ArgumentParser(description = 'DFI library test, prints flux transition time histogram for a chosen track',
                                      formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('dfi_image', type=argparse.FileType('rb'))
+parser.add_argument('flux_image', type=argparse.FileType('rb'))
 parser.add_argument('imagedisk_image', type=argparse.FileType('wb'))
+
+parser.add_argument('-F', '--flux_format', choices=['dfi', 'ksf'], default = 'dfi')
 
 parser_modulation = parser.add_mutually_exclusive_group(required = False)
 parser_modulation.add_argument('--fm',   action = 'store_const', const = FM,   dest = 'modulation', help = 'FM modulation, IBM 3740 single density')
 parser_modulation.add_argument('--mfm',  action = 'store_const', const = MFM,  dest = 'modulation', help = 'MFM modulation, IBM System/34 double density')
-parser_modulation.add_argument('--m2fm', action = 'store_const', const = IntelM2FM, dest = 'modulation', help = 'M2FM modulation, Intel MDS, SBC 202 double density')
+parser_modulation.add_argument('--intelm2fm', action = 'store_const', const = IntelM2FM, dest = 'modulation', help = 'M2FM modulation, Intel MDS, SBC 202 double density')
+parser_modulation.add_argument('--hpm2fm', action = 'store_const', const = HPM2FM, dest = 'modulation', help = 'M2FM modulation, HP 7902/9885/9895 double density')
 
-parser.set_defaults(modulation = 'fm')
+parser.set_defaults(modulation = FM)
 
 parser.add_argument('-f', '--frequency',  type=float, help = 'sample rate in MHz', default=25.0)
 parser.add_argument('-b', '--bit-rate',   type=float, help = 'bit rate in Kbps')
@@ -147,7 +151,10 @@ parser.add_argument('--index',            action = 'store_true', help = 'require
 parser.add_argument('-v', '--verbose',    action = 'store_true')
 args = parser.parse_args()
 
-dfi_image = DFI(args.dfi_image, frequency = args.frequency * 1.0e6)
+if args.flux_format == 'dfi':
+    flux_image = DFI(args.flux_image, frequency = args.frequency * 1.0e6)
+elif args.flux_format == 'ksf':
+    flux_image = KFSF(args.flux_image)
 
 if args.imagedisk_image is not None:
     imd = ImageDisk()
@@ -183,7 +190,7 @@ total_sectors = 0
 
 tracks = [None] * 77
 for track_num in range(77):
-    track = dump_track(args.modulation, dfi_image, track_num, require_index_mark = args.index)
+    track = dump_track(args.modulation, flux_image, track_num, require_index_mark = args.index)
     tracks [track_num] = track
     if args.verbose:
         print('%2d: ' % track_num, end='')
