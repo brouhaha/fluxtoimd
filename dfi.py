@@ -19,27 +19,10 @@
 #    <http://www.gnu.org/licenses/>.
 
 import argparse
-import operator
-from collections import Counter
 
-class DFIBlock:
-    class __DeltaIter:
-        def __init__(self, dfi_block):
-            dfi_block.generate_flux_trans_rel()
-            self.dfi_block = dfi_block
-            self.index = 0
+from fluximage import FluxImage, FluxImageBlock
 
-        def __iter__(self):
-            return self
-
-        def __next__(self):
-            try:
-                v = self.dfi_block.flux_trans_rel[self.index] * self.dfi_block.time_increment
-                self.index += 1
-                return v
-            except IndexError:
-                raise StopIteration
-
+class DFIBlock(FluxImageBlock):
     def parse_data_version_1(self, data):
         time_inc = 0
         for b in data:
@@ -72,85 +55,48 @@ class DFIBlock:
     def coordinates(self):
         return (self.cylinder, self.head, self.sector)
 
-    def __init__(self, dfi):
-        self.dfi = dfi
-        self.cylinder = dfi.get_16_be()
-        self.head = dfi.get_16_be()
-        self.sector = dfi.get_16_be()
-        self.data_len = dfi.get_32_be()
-        self.raw_data = dfi.read(self.data_len)
-        self.time_increment = 1.0 / dfi.frequency
+    def __init__(self, fluximagefile, version, frequency, debug = False):
+        super().__init__(fluximagefile, debug)
+        self.version = version
+        self.frequency = frequency
+        self.cylinder = self.read_u16_be()
+        self.head = self.read_u16_be()
+        self.sector = self.read_u16_be()
+
+        if self.debug:
+            print('version %d, freq %f' % (version, frequency))
+            print('head %d, cylinder %d, sector %d' % (self.head,
+                                                       self.cylinder,
+                                                       self.sector))
+
+        self.data_len = self.read_u32_be()
+        self.raw_data = self.read(self.data_len)
+        self.time_increment = 1.0 / frequency
 
     def generate_flux_trans_abs(self):
         if hasattr(self, 'flux_trans_abs'):
             return
         self.index_pos = []
         self.flux_trans_abs = []
-        self._parse_data[self.dfi.version](self, self.raw_data)
-
-    def generate_flux_trans_rel(self):
-        if hasattr(self, 'flux_trans_rel'):
-            return
-        self.generate_flux_trans_abs()
-        self.flux_trans_rel = [self.flux_trans_abs[i] - self.flux_trans_abs[i-1] for i in range(1, len(self.flux_trans_abs))]
-
-    def get_delta_iter(self):
-        return self.__DeltaIter(self)
-
-    def print_hist(self, bucket_size = 2.5):
-        self.generate_flux_trans_rel()
-        counts = Counter(self.flux_trans_rel)
-        hist = { }
-        for i in counts.keys():
-            bucket = int((i + bucket_size / 2) // bucket_size)
-            hist[bucket] = hist.get(bucket, 0) + counts[i]
-
-        # maximum value
-        m = max(hist.items(), key=operator.itemgetter(1))[1]
-
-        # minimum, maximum keys
-        f = min(hist.items(), key=operator.itemgetter(0))[0]        
-        l = max(hist.items(), key=operator.itemgetter(0))[0]        
-
-        for i in range(f, l + 1):
-            c = hist.get(i, 0)
-            s = '*' * int(65*c/m)
-            if len(s) == 0 and c != 0:
-                s = '.'
-            print("%3.2f: %5d %s" % (i * bucket_size / (self.dfi.frequency / 1.0e6), c, s))
+        self._parse_data[self.version](self, self.raw_data)
 
 
-class DFI:
-    def read(self, length):
-        return self.f.read(length)
-
-    def get_16_be(self):
-        d = self.f.read(2)
-        if len(d) != 2:
-            raise EOFError()
-        return (d[0]<<8) + (d[1])
-
-    def get_32_be(self):
-        d = self.f.read(4)
-        if len(d) != 4:
-            raise EOFError()
-        return (d[0]<<24) + (d[1]<<16) + (d[2]<<8) + (d[3])
-
+class DFI(FluxImage):
     magic_to_version = { b'DFER' : 1,
                          b'DFE2' : 2 }
 
-    def __init__(self, f, frequency = 25.0e6):
-        self.f = f
+    def __init__(self, fluximagefile, debug = False, frequency = 25.0e6):
+        super().__init__(fluximagefile, debug)
         self.frequency = frequency
-        magic = self.f.read(4)
+        magic = self.fluximagefile.read(4)
         if magic not in self.magic_to_version:
             raise Exception('bad magic ' + str(magic))
-        self.version = self.magic_to_version[magic]
+        version = self.magic_to_version[magic]
 
         self.blocks = {}
         while True:
             try:
-                block = DFIBlock(self)
+                block = DFIBlock(fluximagefile, version, frequency, debug = self.debug)
                 self.blocks[block.coordinates()] = block
             except EOFError:
                 break
@@ -165,8 +111,9 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--track',      type=int,   help = 'cylinder', default=0) # cylinder
     parser.add_argument('-f', '--frequency',  type=float, help = 'sample rate in MHz', default=25.0)
     parser.add_argument('-r', '--resolution', type=float, help = 'histogram resolution in us', default=0.2)
+    parser.add_argument('-d', '--debug',      action='store_true', help = 'print debugging information')
     args = parser.parse_args()
-    image = DFI(args.image, frequency = args.frequency * 1.0e6)
+    image = DFI(args.image, frequency = args.frequency * 1.0e6, debug = args.debug)
 
     block = image.blocks[(args.track, args.side, 1)]
 

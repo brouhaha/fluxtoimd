@@ -23,8 +23,9 @@ from collections import Counter
 import io
 import operator
 import re
-import struct
 import zipfile
+
+from fluximage import FluxImage, FluxImageBlock
 
 class KyroFluxStreamOOBBlock:
     def __init__(self, kfs, length):
@@ -133,55 +134,7 @@ class KyroFluxEOF(KyroFluxStreamOOBBlock):
         if self.kfs.debug:
             print('Logical EOF at %d' % self.kfs.block_offset)
 
-class KyroFluxStream:
-    def read(self, count):
-        d = self.f.read(count)
-        if len(d) != count:
-            raise Exception('requested read of %d bytes, only %d available' % (count, len(d)))
-        self.stream_offset += count
-        return d
-
-    def read_integer(self, count, signed = False, big_endian = False):
-        fmt = '<>' [big_endian]
-        fmt += { 1: 'b',
-                 2: 'h',
-                 4: 'i',
-                 8: 'q' } [count]
-        if not signed:
-            fmt = fmt.upper()
-        d = self.read(count)
-        return struct.unpack(fmt, d) [0]
-
-    def read_u8(self):
-        return self.read_integer(1)
-
-    def read_s8(self):
-        return self.read_integer(1, signed = True)
-
-    def read_u16_le(self):
-        return self.read_integer(2)
-
-    def read_u16_be(self):
-        return self.read_integer(2, big_endian = True)
-
-    def read_s16_le(self):
-        return self.read_integer(2, signed = True)
-
-    def read_s16_be(self):
-        return self.read_integer(2, signed = True, big_endian = True)
-
-    def read_u32_le(self):
-        return self.read_integer(4)
-
-    def read_u32_be(self):
-        return self.read_integer(4, big_endian = True)
-
-    def read_s32_le(self):
-        return self.read_integer(4, signed = True)
-
-    def read_s32_be(self):
-        return self.read_integer(4, signed = True, big_endian = True)
-
+class KyroFluxStream(FluxImageBlock):
     def flux_change(self, offset):
         # record flux change here
         self.flux_sample_counter += self.overflow + offset
@@ -227,12 +180,9 @@ class KyroFluxStream:
         else: # 0x0e..0xff: Flux1
             self.flux_change(bt)
 
-    def __init__(self, f, debug = False):
-        #self.f = io.BytesIO(f)
-        self.f = f
-        self.debug = debug
+    def __init__(self, fluximagefile, debug = False):
+        super().__init__(fluximagefile, debug)
         self.info = { }
-        self.stream_offset = 0
         self.overflow = 0
         self.stream_end = False
         self.logical_eof = False
@@ -259,19 +209,19 @@ class KyroFluxStream:
             raise Exception('One or more unresolved index blocks')
 
 
-class KFSF:
-    def __init__(self, f, debug = False):
-        self.tracks = {}
+class KFSF(FluxImage):
+    def __init__(self, fluximagefile, debug = False):
+        super().__init__(fluximagefile, debug)
         
         try:
-            zf = zipfile.ZipFile(f)
+            zf = zipfile.ZipFile(fluximagefile)
         except:
             zf = None
 
         if zf is None:
             head = 0
             track = 0
-            self.blocks[(head, track, 0)] = KyroFluxStream(f, debug = debug)
+            self.blocks[(head, track, 0)] = KyroFluxStream(fluximagefile, debug = debug)
         else:
             for fn in zf.namelist():
                 #print(fn)
@@ -279,7 +229,8 @@ class KFSF:
                 if m:
                     head = int(m.group(2))
                     track = int(m.group(1))
-                    print('reading head %d track %02d' % (head, track))
+                    if debug:
+                        print('reading head %d track %02d' % (head, track))
                     with zf.open(fn) as f:
                         self.blocks[(head, track, 0)] = KyroFluxStream(f, debug = debug)
                         break
