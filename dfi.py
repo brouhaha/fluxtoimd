@@ -52,9 +52,6 @@ class DFIBlock(FluxImageBlock):
     _parse_data = { 1: parse_data_version_1,
                     2: parse_data_version_2 }
 
-    def coordinates(self):
-        return (self.cylinder, self.head, self.sector)
-
     def __init__(self, fluximagefile, version, frequency, debug = False):
         super().__init__(fluximagefile, debug)
         self.version = version
@@ -71,11 +68,7 @@ class DFIBlock(FluxImageBlock):
 
         self.data_len = self.read_u32_be()
         self.raw_data = self.read(self.data_len)
-        self.time_increment = 1.0 / frequency
 
-    def generate_flux_trans_abs(self):
-        if hasattr(self, 'flux_trans_abs'):
-            return
         self.index_pos = []
         self.flux_trans_abs = []
         self._parse_data[self.version](self, self.raw_data)
@@ -115,7 +108,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     image = DFI(args.image, frequency = args.frequency * 1.0e6, debug = args.debug)
 
-    block = image.blocks[(args.track, args.side, 1)]
+    block = image.blocks[(args.side, args.track, 1)]
 
-    bucket_size = int(args.frequency * args.resolution)
+    bucket_size = int(block.frequency * args.resolution / 1.0e6)
     block.print_hist(bucket_size = bucket_size)

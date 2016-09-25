@@ -10,6 +10,9 @@ class FluxImageBlock:
         self.debug = debug
         self.stream_offset = 0
 
+    def coordinates(self):
+        return (self.head, self.cylinder, self.sector)
+
     def read(self, count):
         d = self.fluximagefile.read(count)
         if len(d) != count:
@@ -69,7 +72,7 @@ class FluxImageBlock:
 
         def __next__(self):
             try:
-                v = self.block.flux_trans_rel[self.index] * self.block.time_increment
+                v = self.block.flux_trans_rel[self.index] / self.block.frequency
                 self.index += 1
                 return v
             except IndexError:
@@ -78,8 +81,6 @@ class FluxImageBlock:
     def generate_flux_trans_rel(self):
         if hasattr(self, 'flux_trans_rel'):
             return
-        if hasattr(self, 'generate_flux_trans_abs'):
-            self.generate_flux_trans_abs()
         self.flux_trans_rel = [self.flux_trans_abs[i] - self.flux_trans_abs[i-1] for i in range(1, len(self.flux_trans_abs))]
 
     def get_delta_iter(self):

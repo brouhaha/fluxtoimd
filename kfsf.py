@@ -155,7 +155,12 @@ class KyroFluxStream(FluxImageBlock):
 
     def get_block(self):
         self.block_offset = self.stream_offset
-        bt = self.read_u8()
+        try:
+            bt = self.read_u8()
+        except EOFError:
+            print('unexpected EOF')
+            self.logical_eof = True
+            return
         if bt != 0x0d and self.stream_end:
             raise Exception('In-band data past stream end')
         if bt <= 0x07:  # Flux2
@@ -206,7 +211,7 @@ class KyroFluxStream(FluxImageBlock):
             self.frequency = 18.432e6 * 73 / 56
 
         if self.pending_index_blocks:
-            raise Exception('One or more unresolved index blocks')
+            print('%d unresolved index blocks' % len(self.pending_index_blocks))
 
 
 class KFSF(FluxImage):
@@ -229,11 +234,14 @@ class KFSF(FluxImage):
                 if m:
                     head = int(m.group(2))
                     track = int(m.group(1))
-                    if debug:
+                    if True:
                         print('reading head %d track %02d' % (head, track))
-                    with zf.open(fn) as f:
-                        self.blocks[(head, track, 0)] = KyroFluxStream(f, debug = debug)
-                        break
+                    try:
+                        with zf.open(fn) as f:
+                            self.blocks[(head, track, 0)] = KyroFluxStream(f, debug = debug)
+                    except Exception as e:
+                        print('%s reading head %d track %02d' % (str(e), head, track))
+
 
 # test program accepts command line arguments for 
 if __name__ == "__main__":
@@ -248,7 +256,7 @@ if __name__ == "__main__":
 
     image = KFSF(args.image, debug = args.debug)
 
-    block = image.blocks[(args.track, args.side, 0)]
+    block = image.blocks[(args.side, args.track, 0)]
 
-    bucket_size = int(block.frequency * args.resolution)
+    bucket_size = int(block.frequency * args.resolution / 1.0e6)
     block.print_hist(bucket_size = bucket_size)
