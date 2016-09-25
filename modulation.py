@@ -21,14 +21,17 @@ class Modulation:
     # pairs of (clock, data)
     # XXX this presently doesn't verify that the clock bits meet the
     # encoding rules
-    @staticmethod
-    def decode(channel_bits):
+    @classmethod
+    def decode(cls, channel_bits):
         bytes = []
         bits = ''
         for i in range(0, len(channel_bits), 2):
             clock = int(channel_bits[i])
             data = int(channel_bits[i+1])
-            bits += '01'[data]
+            if cls.lsb_first:
+                bits = '01'[data] + bits
+            else:
+                bits += '01'[data]
             if len(bits) == 8:
                 bytes.append(int(bits, 2))
                 bits = ''
@@ -47,6 +50,7 @@ class FM(Modulation):
     lsb_first = False
     imagedisk_mode = 0x00
 
+    id_field_length = 4
     crc_init = 0xffff
     crc_includes_address_mark = True
 
@@ -81,6 +85,7 @@ class MFM(Modulation):
     lsb_first = False
     imagedisk_mode = 0x03
 
+    id_field_length = 4
     crc_init = 0xffff
     crc_includes_address_mark = True
 
@@ -135,6 +140,7 @@ class IntelM2FM(Modulation):
     imagedisk_mode = 0x03  # ImageDisk doesn't (yet?) have a defined mode for
                            # Intel M2FM
 
+    id_field_length = 4
     crc_init = 0x0000
     crc_includes_address_mark = True
 
@@ -182,6 +188,7 @@ class HPM2FM(Modulation):
     imagedisk_mode = 0x03  # ImageDisk doesn't (yet?) have a defined mode for
                            # Intel M2FM
 
+    id_field_length = 2
     crc_init = 0xffff
     crc_includes_address_mark = False
 
@@ -197,7 +204,7 @@ class HPM2FM(Modulation):
             bits += ('%d%d' % (c, d))
         return bits
 
-    id_address_mark              = encode_mark(0x70, clock = 0xe0)
+    id_address_mark              = encode_mark(0x70, clock = 0x0e)
     defective_track_address_mark = encode_mark(0xf0, clock = 0x0e)
     data_address_mark            = encode_mark(0x50, clock = 0x0e)
     ecc_data_address_mark        = encode_mark(0xd0, clock = 0x0e)

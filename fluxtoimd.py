@@ -69,6 +69,7 @@ def dump_track(modulation, image, track,
     for b in adpll:
         bits += '01'[b]
     #print(len(bits))
+    #print(bits)
 
     if require_index_mark:
         index_address_mark_locs = [m.start() for m in re.finditer(modulation.index_address_mark, bits)]
@@ -81,14 +82,28 @@ def dump_track(modulation, image, track,
 
     for id_pos in id_address_mark_locs:
         #print('id address mark at channel bit %d' % id_pos)
-        id_field = modulation.decode(bits[id_pos: id_pos + len(modulation.id_address_mark) + 96])
+        id_field = modulation.decode(bits[id_pos: id_pos + len(modulation.id_address_mark) + 16 * (modulation.id_field_length + 2)])
         crc.reset()
-        crc.comp(id_field)
+        if (modulation.crc_includes_address_mark):
+            crc.comp(id_field)
+        else:
+            crc.comp(id_field[1:])
         if crc.get() != 0:
             print("*** bad ID field CRC %04x" % crc.get())
             hex_dump(id_field)
             continue
-        id_track, id_head, id_sector, id_size = id_field[1:5]
+        if modulation.id_field_length == 2:
+            # HP M2FM ID field only contains two bytes for track and sector
+            id_track, id_sector = id_field[1:3]
+            if id_sector < 0x80:
+                id_head = 0
+            else:
+                id_sector -= 0x80
+                id_head = 1
+            id_size = 0
+        else:
+            id_track, id_head, id_sector, id_size = id_field[1:5]
+        #print('head %d track %02d sector %02d' % (id_head, id_track, id_sector))
         if id_track != track:
             print("*** ID field with wrong track number")
             hex_dump(id_field)
@@ -108,7 +123,7 @@ def dump_track(modulation, image, track,
         if (modulation.id_to_data_half_bits - 50) <= (data_pos - id_pos) <= (modulation.id_to_data_half_bits + 50):
             #print('  data address mark at channel bit offset %d' % (data_pos - id_pos))
             pass
-        else:
+        elif hasattr(modulation, 'deleted_data_address_mark'):
             data_pos = bits.find(modulation.deleted_data_address_mark, id_pos + len(modulation.id_address_mark) + 96)
             if (modulation.id_to_data_half_bits - 50) <= (data_pos - id_pos) <= (modulation.id_to_data_half_bits + 50):
                 #print('  deleted data address mark at channel bit offset %d' % (deleted_data_pos - id_pos))
@@ -117,6 +132,10 @@ def dump_track(modulation, image, track,
                 print('*** ID field without data field ***')
                 hex_dump(id_field)
                 continue
+        else:
+            print('*** ID field without data field ***')
+            hex_dump(id_field)
+            continue
 
         data_field = modulation.decode(bits[data_pos: data_pos + len(modulation.id_address_mark) + (bc + 2) * 16])
         crc.reset()
@@ -145,6 +164,8 @@ parser_modulation.add_argument('--hpm2fm', action = 'store_const', const = HPM2F
 
 parser.set_defaults(modulation = FM)
 
+parser.add_argument('-t', '--tracks',     type=int, default = 77, help='number of tracks')
+
 parser.add_argument('-f', '--frequency',  type=float, help = 'sample rate in MHz', default=25.0)
 parser.add_argument('-b', '--bit-rate',   type=float, help = 'bit rate in Kbps')
 parser.add_argument('--index',            action = 'store_true', help = 'require tracks to have index address marks')
@@ -155,6 +176,10 @@ if args.flux_format == 'dfi':
     flux_image = DFI(args.flux_image, frequency = args.frequency * 1.0e6)
 elif args.flux_format == 'ksf':
     flux_image = KFSF(args.flux_image)
+
+if args.modulation == HPM2FM and args.index:
+    print("index mark option ignored, as HP M2FM doesn't use index marks")
+    args.index = False
 
 if args.imagedisk_image is not None:
     imd = ImageDisk()
@@ -168,7 +193,7 @@ crc_param = CRC.CRCParam(name = 'CRC-16-CCITT',
                          poly = 0x1021,
                          init = args.modulation.crc_init,
                          xorot = 0x0000,
-                         refin = False,
+                         refin = args.modulation.lsb_first,
                          refot = False)
 
 
@@ -188,8 +213,8 @@ deleted_sectors = 0
 total_sectors = 0
 
 
-tracks = [None] * 77
-for track_num in range(77):
+tracks = [None] * args.tracks
+for track_num in range(args.tracks):
     track = dump_track(args.modulation, flux_image, track_num, require_index_mark = args.index)
     tracks [track_num] = track
     if args.verbose:
