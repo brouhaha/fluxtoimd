@@ -25,7 +25,7 @@ formats:
   (industry-standard single density as used by most floppy controllers)
 
 * Intel M2FM double-density 128 byte/sector format
-  (used by SBC 202 floppy controller in Intel MDS 300/Series II/Series III
+  (used by SBC 202 floppy controller in Intel MDS 800/Series II/Series III
   development systems)
 
 * HP M2FM double-density 256 byte/sector format
