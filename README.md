@@ -3,7 +3,7 @@ images, demodulate the data, and write the data to an ImageDisk image file.
 DiscFerret (.dfi) images and ZIP files of KryoFlux Stream File images are
 supported as input.
 
-Copyright 2016 Eric Smith <spacewar@gmail.com>
+Copyright © 2016 Eric Smith <spacewar@gmail.com>
 
     This program is free software: you can redistribute it and/or
     modify it under the terms of version 3 of the GNU General Public
@@ -36,5 +36,5 @@ There is untested code to support the following formats:
 * IBM System/34 MFM double-density
   (industry standard double-density as used by most floppy controllers)
 
-In principle the code should work with images of 5-1/4 inch and 3-1/2 inch
+In principle the code should work with images of 5¼ inch and 3½ inch
 floppy disks, but that has not been tested.
