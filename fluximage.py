@@ -1,6 +1,8 @@
-from collections import Counter
+from collections import Counter, namedtuple
 import operator
 import struct
+
+CHS = namedtuple('CHS', ['cylinder', 'head', 'sector'])
 
 '''A FluxImageBlock represents one flux image, which is a single track
    for a soft-sectored disk, or a single sector for a hard-sectored disk'''
@@ -10,8 +12,8 @@ class FluxImageBlock:
         self.debug = debug
         self.stream_offset = 0
 
-    def coordinates(self):
-        return (self.cylinder, self.head, self.sector)
+    def chs(self):
+        return CHS(self.cylinder, self.head, self.sector)
 
     def read(self, count):
         d = self.fluximagefile.read(count)

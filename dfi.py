@@ -20,7 +20,7 @@
 
 import argparse
 
-from fluximage import FluxImage, FluxImageBlock
+from fluximage import CHS, FluxImage, FluxImageBlock
 
 class DFIBlock(FluxImageBlock):
     def parse_data_version_1(self, data):
@@ -90,7 +90,7 @@ class DFI(FluxImage):
         while True:
             try:
                 block = DFIBlock(fluximagefile, version, frequency, debug = self.debug)
-                self.blocks[block.coordinates()] = block
+                self.blocks[block.chs()] = block
             except EOFError:
                 break
 
