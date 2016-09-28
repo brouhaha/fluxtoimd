@@ -19,9 +19,6 @@
 #    <http://www.gnu.org/licenses/>.
 
 import argparse
-from collections import Counter
-import io
-import operator
 import re
 import zipfile
 
