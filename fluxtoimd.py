@@ -226,7 +226,7 @@ total_sectors = 0
 
 #tracks = { }
 for track_num in range(args.tracks):
-    for side_num in range(args.sides - 1):
+    for side_num in range(args.sides):
         track = dump_track(args.modulation, flux_image, track_num, side_num, require_index_mark = args.index)
         #tracks[(track_num, side_num)] = track
         if args.verbose:
