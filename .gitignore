@@ -6,3 +6,4 @@ arch255*
 documentation.txt
 imd.txt
 notes.txt
+__pycache__
