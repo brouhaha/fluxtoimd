@@ -188,7 +188,10 @@ class CRC:
         else:
             return self.reg ^ self.param.xorot
 
-
+    def crc(self, data):
+        self.reset()
+        self.comp(data)
+        return self.get()
 
 
 if __name__ == '__main__':
