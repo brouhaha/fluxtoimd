@@ -38,3 +38,76 @@ There is untested code to support the following formats:
 
 In principle the code should work with images of 5¼ inch and 3½ inch
 floppy disks, but that has not been tested.
+
+USAGE:
+
+To use with kryoflux to read Intel m2fm and fm disks (MDS/ISIS)
+
+Read 8" single sided disk as stream file. Use -g2 to read double sided disks.
+This reads each track about five times to allow error recovery.
+  ./dtc  -fdirname/track -g0 -i0 -d0 -p -e76 -dd0
+
+Zip up the output directory
+  zip -rj filename.zip dirname/*
+
+Process the files
+  ./fluxtoimd -F ksf --intelm2fm filename.zip filename.imd -C "Description of disk"
+
+Uncorrectable read errors will generate this message if all reads of sector
+had data CRC error
+*** BAD: track 21 sector 46
+
+If the sector was not found or had header CRC error for all reads this error
+will be generated.
+*** BAD nodata: track 03 sector 26
+
+Summary of errors are printed at the end of the conversion.
+
+To extract the files with isisutils into a directory
+  ./isis.py -x -d output_dir file.imd 
+
+To extract into a zip file 
+  ./isis.py -x -z output.zip file.imd 
+
+To view directory
+  ./isis.py -v file.imd 
+
+For CP/M disks cpmtools can extract with this diskdef for double density
+disks.
+# Intel MDS/22 8" Double Density
+diskdef mds-dd
+  seclen 128
+  tracks 77
+  sectrk 52
+  blocksize 2048
+  maxdir 128
+  skew 0
+  boottrk 2
+  os 2.2
+end
+
+Untested single density
+# Intel MDS/22 8" Single Density
+diskdef mds-sd
+  seclen 128
+  tracks 77
+  sectrk 26
+  blocksize 1024
+  maxdir 64
+  skew 0
+  boottrk 2
+  os 2.2
+end
+
+For cpmtools the .imd files need to be converted to raw .img file.
+Libdsk can convert
+  ./libdsk-1.5.12/tools/dskconv -otype raw filename.imd filename.img
+And disk utilities
+  ./Disk-Utilities/disk-analyse/disk-analyse filename.imd filename.img
+
+For directory 
+  ./cpmtools/cpmls -f mds-dd filename.img
+
+To extract
+  ./cpmcp -f mds-dd filename.img '0:*' output-directory
+
