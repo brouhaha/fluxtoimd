@@ -223,6 +223,7 @@ class KFSF(FluxImage):
         if zf is None:
             head = 0
             track = 0
+            fluximagefile.seek(0)
             self.blocks[(track, head, 1)] = KyroFluxStream(fluximagefile, debug = debug)
         else:
             for fn in zf.namelist():

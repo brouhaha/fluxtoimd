@@ -44,11 +44,12 @@ class ImageDisk:
         pass
 
     class Sector:
-        def __init__(self, mode, deleted, size_code, data):
+        def __init__(self, mode, deleted, size_code, data, bad):
             self.mode = mode
             self.deleted = deleted
             self.size_code = size_code
             self.data = data
+            self.bad = bad
     
     __sector_size_map = { 128: 0,
                           256: 1,
@@ -58,7 +59,7 @@ class ImageDisk:
                           4096: 5 }
 
 
-    def write_sector(self, mode, cylinder, head, sector, data, deleted = False, replace_ok = False):
+    def write_sector(self, mode, cylinder, head, sector, data, deleted = False, replace_ok = False, bad = False):
         track_coord = (cylinder, head)
         if track_coord not in self.tracks:
             self.tracks[track_coord] = OrderedDict()
@@ -66,7 +67,7 @@ class ImageDisk:
             raise DuplicateSectorException('duplicate sector, cyl=%d, head=%d, sector=%d' % (cylinder, head, sector))
         if len(data) not in self.__sector_size_map:
             raise InvalidSectorSizeException('invalid sector size, cyl=%d, head=%d, sector=%d, size=%d' % (cylinder, head, sector, len(data)))
-        self.tracks[track_coord][sector] = ImageDisk.Sector(mode, deleted, self.__sector_size_map[len(data)], data)
+        self.tracks[track_coord][sector] = ImageDisk.Sector(mode, deleted, self.__sector_size_map[len(data)], data, bad)
 
 
     def __read_track(self, f):
@@ -163,6 +164,8 @@ class ImageDisk:
                 data_code = 0x03
             else:
                 data_code = 0x01
+            if track[sector_number].bad:
+                data_code = data_code + 0x04;
             data = track[sector_number].data
             compress = data[1:] == data[:-1]
             if compress:
@@ -183,7 +186,7 @@ class ImageDisk:
         dt = self.timestamp.strftime('%d/%m/%Y %H:%M:%S')
         f.write(bytes('IMD 1.18 %s\r' % dt, encoding='ascii'))
         if self.comment is not None:
-            f.write(self.comment, '\r')
+            f.write(bytes(self.comment + '\r', 'utf-8'))
         f.write(bytes([0x1a]))
 
         tl = sorted(self.tracks.keys())
