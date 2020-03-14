@@ -74,6 +74,7 @@ To view directory
 
 For CP/M disks cpmtools can extract with this diskdef for double density
 disks.
+<pre>
 # Intel MDS/22 8" Double Density
 diskdef mds-dd
   seclen 128
@@ -98,6 +99,7 @@ diskdef mds-sd
   boottrk 2
   os 2.2
 end
+</pre>
 
 For cpmtools the .imd files need to be converted to raw .img file.
 Libdsk can convert
