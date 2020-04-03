@@ -137,7 +137,9 @@ class KyroFluxStream(FluxImageBlock):
         self.flux_sample_counter += self.overflow + offset
         self.overflow = 0
 
-        self.flux_trans_abs.append(self.flux_sample_counter)
+        # Discard all flux transitions before index pulse
+        if self.index_abs and self.flux_sample_counter > self.index_abs[0]:
+            self.flux_trans_abs.append(self.flux_sample_counter)
 
         if self.stream_offset in self.pending_index_blocks:
             index = self.pending_index_blocks[self.stream_offset]
