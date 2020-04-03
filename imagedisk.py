@@ -184,9 +184,9 @@ class ImageDisk:
 
         # write header
         dt = self.timestamp.strftime('%d/%m/%Y %H:%M:%S')
-        f.write(bytes('IMD 1.18 %s\r' % dt, encoding='ascii'))
+        f.write(bytes('IMD 1.18 %s\r\n' % dt, encoding='ascii'))
         if self.comment is not None:
-            f.write(bytes(self.comment + '\r', 'utf-8'))
+            f.write(bytes(self.comment + '\r\n', 'utf-8'))
         f.write(bytes([0x1a]))
 
         tl = sorted(self.tracks.keys())
