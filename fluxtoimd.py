@@ -19,6 +19,7 @@ import argparse
 import re
 from collections import OrderedDict
 
+from scp import SCP      # SuperCardPro image format
 from dfi import DFI      # DiscFerret image format
 from kfsf import KFSF    # KryoFlux stream format
 from adpll import ADPLL
@@ -167,7 +168,7 @@ parser.add_argument('flux_image', type=argparse.FileType('rb'))
 parser.add_argument('imagedisk_image', type=argparse.FileType('wb'))
 parser.add_argument('-C', '--comment', action = 'store')
 
-parser.add_argument('-F', '--flux_format', choices=['dfi', 'ksf'], default = 'dfi')
+parser.add_argument('-F', '--flux_format', choices=['dfi', 'ksf', 'scp'], default = 'dfi')
 
 parser_modulation = parser.add_mutually_exclusive_group(required = False)
 parser_modulation.add_argument('--fm',   action = 'store_const', const = FM,   dest = 'modulation', help = 'FM modulation, IBM 3740 single density')
@@ -190,6 +191,8 @@ if args.flux_format == 'dfi':
     flux_image = DFI(args.flux_image, frequency = args.frequency * 1.0e6)
 elif args.flux_format == 'ksf':
     flux_image = KFSF(args.flux_image)
+elif args.flux_format == 'scp':
+    flux_image = SCP(args.flux_image)
 
 if args.modulation == HPM2FM and args.index:
     print("index mark option ignored, as HP M2FM doesn't use index marks")
