@@ -64,9 +64,9 @@ class ImageDisk:
         if track_coord not in self.tracks:
             self.tracks[track_coord] = OrderedDict()
         if (not replace_ok) and (sector in self.tracks[track_coord]):
-            raise DuplicateSectorException('duplicate sector, cyl=%d, head=%d, sector=%d' % (cylinder, head, sector))
+            raise ImageDisk.DuplicateSectorException('duplicate sector, cyl=%d, head=%d, sector=%d' % (cylinder, head, sector))
         if len(data) not in self.__sector_size_map:
-            raise InvalidSectorSizeException('invalid sector size, cyl=%d, head=%d, sector=%d, size=%d' % (cylinder, head, sector, len(data)))
+            raise ImageDisk.InvalidSectorSizeException('invalid sector size, cyl=%d, head=%d, sector=%d, size=%d' % (cylinder, head, sector, len(data)))
         self.tracks[track_coord][sector] = ImageDisk.Sector(mode, deleted, self.__sector_size_map[len(data)], data, bad)
 
 
@@ -108,7 +108,7 @@ class ImageDisk:
             # XXX read header
             s = f.read(4)
             if s != b'IMD ':
-                raise NotImageDiskFileException()
+                raise ImageDisk.NotImageDiskFileException()
             c = 0
             while c != bytes([0x1a]):
                 c = f.read(1)
@@ -129,7 +129,7 @@ class ImageDisk:
         try:
             data = self.tracks[(cylinder, head)][sector].data
         except KeyError:
-            raise NonexistentSectorException()
+            raise ImageDisk.NonexistentSectorException()
         return data
 
     def __write_track(self, f, tc):
@@ -142,7 +142,7 @@ class ImageDisk:
             if mode is None:
                 mode = sector.mode
             elif mode != sector.mode:
-                raise MixedModeTrackException('mixed modes, cyl=%d, head=%d' % tc)
+                raise ImageDisk.MixedModeTrackException('mixed modes, cyl=%d, head=%d' % tc)
             if sector_size_code is None:
                 sector_size_code = sector.size_code
             elif sector_size_code != sector.size_code:

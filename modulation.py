@@ -25,9 +25,9 @@ class Modulation:
     def decode(cls, channel_bits):
         bytes = []
         bits = ''
-        for i in range(0, len(channel_bits), 2):
-            clock = int(channel_bits[i])
-            data = int(channel_bits[i+1])
+        for i in range(1, len(channel_bits), 2):
+            clock = int(channel_bits[i-1])
+            data = int(channel_bits[i])
             if cls.lsb_first:
                 bits = '01'[data] + bits
             else:
