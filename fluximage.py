@@ -109,7 +109,18 @@ class FluxImageBlock:
             if len(s) == 0 and c != 0:
                 s = '.'
             print("%3.2f: %5d %s" % (i * bucket_size / (self.frequency / 1.0e6), c, s))
-    
+
+
+class FluxImageDummyBlock(FluxImageBlock):
+    def __init__(self, frequency, head, cylinder):
+        self.frequency = frequency
+        self.cylinder = cylinder
+        self.head = head
+        self.sector = 1
+        self.index_pos = [0]
+        self.flux_trans_abs = [0]
+        self.flux_trans_rel = [0]
+
 
 class FluxImage:
     def __init__(self, fluximagefile, debug = False):
